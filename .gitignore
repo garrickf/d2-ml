@@ -1,0 +1,11 @@
+# Mac files
+.DS_Store
+
+# VS Code files
+.vscode
+
+# Python files
+*.pyc
+
+# env file
+.env

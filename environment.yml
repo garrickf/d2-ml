@@ -1,0 +1,19 @@
+# conda env create -f environment.yml
+
+name: destiny2
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.8
+  - pandas
+  - numpy
+  - jupyter
+  - scikit-learn
+  - matplotlib
+  # Data collection
+  - requests
+  # Formatting
+  - black
+  - pytest
+  - pylint
