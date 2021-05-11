@@ -9,3 +9,6 @@
 
 # env file
 .env
+
+# data directort
+data/
