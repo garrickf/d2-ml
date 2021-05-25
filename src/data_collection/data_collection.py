@@ -1,13 +1,26 @@
 # Collect data from the Bungie API.
 import json
+import logging
 import os
 import pickle
+import time
 from os.path import dirname, join, normpath, realpath
 from urllib.parse import urljoin
 
+import pandas as pd
 import requests
 from dotenv import load_dotenv
 
+from threadpool import ThreadPool
+
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("threadpool").setLevel(logging.DEBUG)
+logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+
+# Constants
+STARTING_ACTIVITY_ID = 8400554258
+ENDING_ACTIVITY_ID = STARTING_ACTIVITY_ID + int(100)
+# ENDING_ACTIVITY_ID = STARTING_ACTIVITY_ID + int(1e6)
 
 # TODO pull out into common utils
 def get_headers():
@@ -33,15 +46,20 @@ def load_manifest():
 
 INDEX = load_manifest()
 HEADERS = get_headers()
-API_URL = "https://www.bungie.net/platform/"
+API_URL = "https://www.bungie.net/Platform/"
 GET_ACTIVITY_HISTORY = "Destiny2/{membershipType}/Account/{destinyMembershipId}/Character/{characterId}/Stats/Activities/"
 GET_POST_GAME_CARNAGE_REPORT = "Destiny2/Stats/PostGameCarnageReport/{activityId}/"
+# TODO: get character stats
+# TODO: get weapon stats per weapon
 
 # r = requests.get(path, headers=HEADERS)
 # print(json.dumps(r.json(), indent=4))  # Example of prettyprint
 
 
 def get_activity_name(activity):
+    # Uses the directorActivityHash of the
+    # HistoricalStats.DestinyHistoricalStatsActivity (i.e., the entries of the
+    # activity history)
     activity_hash = activity["activityDetails"]["directorActivityHash"]
 
     # Localize using manifest
@@ -56,6 +74,8 @@ def get_activity_period(activity):
 
 
 def get_activity_reference_id(activity):
+    # NOTE more properly thought of as the activityHash. Maps to
+    # DestinyActivityDefinition in manifest.
     return activity["activityDetails"]["referenceId"]
 
 
@@ -106,9 +126,9 @@ def get_value_standing(values):
     return 1 - values["standing"]["basic"]["value"]
 
 
-def get_activity_history(character_data):
+def get_activity_history(character_data, params=None):
     path = urljoin(API_URL, GET_ACTIVITY_HISTORY.format(**character_data))
-    r = requests.get(path, headers=HEADERS)
+    r = requests.get(path, headers=HEADERS, params=params)
 
     activities = r.json()["Response"]["activities"]
     print(f"{len(activities)} activities found")
@@ -120,10 +140,11 @@ def get_activity_history(character_data):
         details = activity["activityDetails"]
         activity_name = get_activity_name(activity)
         values = get_activity_values(activity)
+        id = get_activity_instance_id(activity)
 
         # TODO: filter and bucket activities. get more. use recent activities as features per player
         # print(f"{period}, {activity_name}, victory?: {get_value_standing(values)}, kills: {get_value_kills(values)}, oppDef: {get_value_opponents_defeated(values)}")
-        print(f"{period}, {activity_name}")
+        print(f"{period}, {activity_name}, {id}")
         history.append(
             {
                 "period": period,
@@ -136,6 +157,78 @@ def get_activity_history(character_data):
     return history
 
 
+def scrape_pgcr(instance_id):
+    path = urljoin(
+        API_URL, GET_POST_GAME_CARNAGE_REPORT.format(**{"activityId": instance_id})
+    )
+    r = requests.get(path, headers=HEADERS)
+
+    try:
+        pgcr = r.json()["Response"]
+    except json.JSONDecodeError:
+        print(f"Error: got status {r.status_code}")
+        # print(f"Error {r['ErrorStatus']} ({r['ErrorCode']}): {r['Message']}")
+        # print(f"Throttle seconds {r['ThrottleSeconds']}")
+        # raise RuntimeError
+
+        # Just return silently
+        return
+
+    period = get_activity_period(pgcr)
+    director_activity_name = get_activity_name(pgcr)
+
+    entries = pgcr["entries"]
+    # print(f"Activity {instance_id} has {len(entries)} entries...")
+
+    player_entries = {}
+    for i, entry in enumerate(entries):
+        # TODO handle extended and other props
+        characterId = entry["characterId"]
+        player_entries[f"player{i + 1}_id"] = characterId
+
+    # Return dict
+    return {
+        "instance_id": instance_id,
+        "period": period,
+        "director_activity_name": director_activity_name,
+        **player_entries,
+    }
+
+
+def scrape_pgcrs(filter=None):
+    data = []  # List of dicts
+
+    for instance_id in range(STARTING_ACTIVITY_ID, ENDING_ACTIVITY_ID):
+        entry = scrape_pgcr(instance_id)
+        data.append(entry)
+
+    df = pd.DataFrame(data)
+    df.to_csv("test.csv")
+
+
+# TODO: filter only activities we want/attributes we want
+def scrape_pgcrs_multithreaded(filter=None):
+    data = []  # List of dicts
+    t = ThreadPool()
+
+    for instance_id in range(STARTING_ACTIVITY_ID, ENDING_ACTIVITY_ID):
+        # Create a closure
+        def make_func(id):
+            def func():
+                entry = scrape_pgcr(id)
+                data.append(entry)
+
+            return func
+
+        # Needed to create a new scope
+        t.schedule(make_func(instance_id))
+
+    t.shutdown()
+
+    df = pd.DataFrame(data)
+    df.to_csv("test.csv")
+
+
 if __name__ == "__main__":
     # TODO: crawl over characters and collect relevant data
     character_data = {
@@ -144,4 +237,18 @@ if __name__ == "__main__":
         "characterId": "2305843009574374200",
     }
 
-    history = get_activity_history(character_data)
+    # Example activity history call with params
+    params = {"count": 10}
+    history = get_activity_history(character_data, params=params)
+
+    # Add rudimentary timing...
+    start_time = time.time()
+    start_perf_ctr = time.perf_counter()
+
+    # scrape_pgcrs()
+    scrape_pgcrs_multithreaded()
+
+    time_elapsed = time.time() - start_time
+    perf_ctr_elapsed = time.perf_counter() - start_perf_ctr
+    print(f"time: {time_elapsed}")
+    print(f"perf time: {perf_ctr_elapsed}")

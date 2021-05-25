@@ -37,6 +37,7 @@ def get_manifest():
     r = requests.get(path, headers=HEADERS)
     manifest = r.json()
 
+    # mobileWorldContentPaths holds static definitions of objects in Destiny
     mani_url = urljoin(
         CONTENT_URL, manifest["Response"]["mobileWorldContentPaths"]["en"]
     )
@@ -115,7 +116,8 @@ tables = [
     "DestinyCollectibleDefinition",
     "DestinyDamageTypeDefinition",
     "DestinyDestinationDefinition",
-    "DestinyEnemyRaceDefinition",
+    # Table went away 5/12/21
+    # "DestinyEnemyRaceDefinition",
     "DestinyEnergyTypeDefinition",
     "DestinyEquipmentSlotDefinition",
     "DestinyFactionDefinition",
