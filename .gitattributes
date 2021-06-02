@@ -1,0 +1,3 @@
+# Ignore tex as documentation
+tex/paper.tex linguist-documentation
+tex/IEEEtran.cls linguist-vendored

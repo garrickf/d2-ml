@@ -10,5 +10,18 @@
 # env file
 .env
 
-# data directort
+# data directory
 data/
+
+# TeX output
+tex/*.aux
+tex/*.log
+# IDK where this came from
+tex/*.out
+tex/*.pdf
+# Except the paper
+!tex/paper.pdf
+indent.log
+*.fls
+*.synctex.gz
+*.fdb_latexmk
