@@ -5,17 +5,18 @@ channels:
   - defaults
   - conda-forge
 dependencies:
-  - python=3.8
-  - pandas
-  - numpy
-  - jupyter
-  - scikit-learn
-  - matplotlib
-  - tqdm
+  - python=3.8.8
+  - pip=21.0.1
+  - pandas=1.2.4
+  - numpy=1.20.1
+  - jupyter=1.0.0
+  - scikit-learn=0.24.1
+  - matplotlib=3.3.4
+  - tqdm=4.59.0
   # Data collection
-  - requests
+  - requests=2.25.1
   # Formatting
-  - black
-  - pytest
-  - pylint
-  - isort
+  - black=19.10b0
+  - pytest=6.2.3
+  - pylint=2.7.4
+  - isort=5.8.0
